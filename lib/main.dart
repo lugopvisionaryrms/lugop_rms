@@ -42,15 +42,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
-          // THIS IS THE FIX: Injecting JavaScript to force popups into the current window
           onPageFinished: (String url) async {
+            // Injecting JavaScript to force popups into the current window for PDF downloads
             await controller.runJavaScript('''
-              // 1. Force window.open to use the current window
               window.open = function(url) {
                 window.location.href = url;
                 return null;
               };
-              // 2. Change all target="_blank" links to "_self"
               document.addEventListener('click', function(e) {
                 var a = e.target.closest('a');
                 if (a && a.getAttribute('target') === '_blank') {
@@ -64,13 +62,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
                 ? NavigationDecision.prevent 
                 : NavigationDecision.navigate;
           },
+          // THE FIX: onUrlChange is now properly inside NavigationDelegate
+          onUrlChange: (UrlChange change) {
+            if (change.url != null) {
+              _handleDownload(change.url!);
+            }
+          },
         ),
       )
-      ..setOnUrlChange((UrlChange change) {
-        if (change.url != null) {
-          _handleDownload(change.url!);
-        }
-      })
       ..loadRequest(Uri.parse(markEntryUrl));
   }
 

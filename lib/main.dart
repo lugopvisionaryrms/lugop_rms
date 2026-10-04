@@ -29,6 +29,12 @@ class WebViewScreen extends StatefulWidget {
 class _WebViewScreenState extends State<WebViewScreen> {
   late final WebViewController controller;
 
+  // Web Portal URLs
+  final String markEntryUrl = 'https://lugopvisionaryrms.github.io/lugop-portal/?school=thunga%20cdss';
+  final String reportPortalUrl = 'https://script.google.com/macros/s/AKfycbwwSN3nPb9BTtblvnsPaG_r2WIAezI0L045IGvucUJ9h6WLiZkcfEiTqUCd6BSeFcm_/exec?school=thunga%20cdss';
+
+  String currentSubtitle = 'Mark Entry';
+
   @override
   void initState() {
     super.initState();
@@ -37,12 +43,22 @@ class _WebViewScreenState extends State<WebViewScreen> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onNavigationRequest: (NavigationRequest request) async {
-            // This code catches PDF downloads and opens them in Chrome to save to the phone
-            if (request.url.toLowerCase().contains('.pdf') || 
-                request.url.toLowerCase().contains('download')) {
-              final Uri url = Uri.parse(request.url);
-              if (await canLaunchUrl(url)) {
-                await launchUrl(url, mode: LaunchMode.externalApplication);
+            final url = request.url.toLowerCase();
+
+            // Catch PDF downloads, Google Drive export links, or download triggers
+            if (url.contains('.pdf') ||
+                url.contains('download') ||
+                url.contains('export=download') ||
+                url.contains('format=pdf') ||
+                url.contains('googleusercontent') ||
+                url.startsWith('blob:') ||
+                url.startsWith('data:')) {
+              
+              final Uri uri = Uri.parse(request.url);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              } else {
+                await launchUrl(uri, mode: LaunchMode.platformDefault);
               }
               return NavigationDecision.prevent;
             }
@@ -50,19 +66,17 @@ class _WebViewScreenState extends State<WebViewScreen> {
           },
         ),
       )
-      // IMPORTANT: Replace the link below with your actual LUGOP Web Portal link!
-      ..loadRequest(Uri.parse('https://lugopvisionaryrms.github.io/lugop-portal/?school=thunga%20cdss')); 
+      ..loadRequest(Uri.parse(markEntryUrl));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0066CC), // The Blue Background
+        backgroundColor: const Color(0xFF0066CC),
         elevation: 0,
         title: Row(
           children: [
-            // White box containing your LUGOP logo
             Container(
               height: 40,
               width: 40,
@@ -74,11 +88,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
               child: Image.asset('assets/logo.png'),
             ),
             const SizedBox(width: 12),
-            // The Header Text
-            const Column(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'LUGOP RMS',
                   style: TextStyle(
                     color: Colors.white,
@@ -87,9 +100,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
                   ),
                 ),
                 Text(
-                  'Mark Entry',
-                  style: TextStyle(
-                    color: Colors.yellowAccent, // The Yellow Text
+                  currentSubtitle,
+                  style: const TextStyle(
+                    color: Colors.yellowAccent,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -99,15 +112,54 @@ class _WebViewScreenState extends State<WebViewScreen> {
           ],
         ),
         actions: [
-          IconButton(
+          // Working Menu Button with Popup Options
+          PopupMenuButton<String>(
             icon: const Icon(Icons.menu, color: Colors.white),
-            onPressed: () {
-              // Menu button action can be added here later if needed
+            onSelected: (String value) {
+              if (value == 'mark_entry') {
+                setState(() {
+                  currentSubtitle = 'Mark Entry';
+                });
+                controller.loadRequest(Uri.parse(markEntryUrl));
+              } else if (value == 'report_portal') {
+                setState(() {
+                  currentSubtitle = 'Report Portal';
+                });
+                controller.loadRequest(Uri.parse(reportPortalUrl));
+              }
             },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'mark_entry',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_note, color: Colors.blue),
+                    SizedBox(width: 8),
+                    Text('Mark Entry Portal'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'report_portal',
+                child: Row(
+                  children: [
+                    Icon(Icons.assessment, color: Colors.green),
+                    SizedBox(width: 8),
+                    Text('Report Verification Portal'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
-      body: WebViewWidget(controller: controller),
+      // Pull-to-refresh implementation
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await controller.reload();
+        },
+        child: WebViewWidget(controller: controller),
+      ),
     );
   }
 }

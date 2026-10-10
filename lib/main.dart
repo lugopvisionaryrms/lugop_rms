@@ -36,7 +36,7 @@ class WebViewScreen extends StatefulWidget {
 class _WebViewScreenState extends State<WebViewScreen> {
   late final WebViewController controller;
 
-  // IMPORTANT: Replace with your actual Google Apps Script Web App links!
+  // Your actual portal links
   final String markEntryUrl = 'https://lugopvisionaryrms.github.io/lugop-portal/?school=thunga%20cdss';
   final String reportPortalUrl = 'https://script.google.com/macros/s/AKfycbwwSN3nPb9BTtblvnsPaG_r2WIAezI0L045IGvucUJ9h6WLiZkcfEiTqUCd6BSeFcm_/exec?school=thunga%20cdss';
 
@@ -48,10 +48,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
     super.initState();
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      // FIXED: Channel name is now "PdfDownloadChannel" to match Google Apps Script
       ..addJavaScriptChannel(
-        'PdfDownloader',
+        'PdfDownloadChannel',
         onMessageReceived: (JavaScriptMessage message) async {
-          await _saveAndOpenBase64Pdf(message.message);
+          await _saveAndOpenPdfFromJson(message.message);
         },
       )
       ..setNavigationDelegate(
@@ -69,17 +70,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
                 isLoading = false;
               });
             }
-
-            // Intercept Base64 PDF links and send to Flutter
-            await controller.runJavaScript('''
-              document.addEventListener('click', function(e) {
-                var a = e.target.closest('a');
-                if (a && a.href && a.href.startsWith('data:application/pdf;base64')) {
-                  e.preventDefault();
-                  window.PdfDownloader.postMessage(a.href);
-                }
-              }, true);
-            ''');
           },
           onWebResourceError: (WebResourceError error) {
             if (mounted) {
@@ -93,8 +83,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
       ..loadRequest(Uri.parse(markEntryUrl));
   }
 
-  // Function to convert Base64 string to PDF file and open it
-  Future<void> _saveAndOpenBase64Pdf(String base64String) async {
+  // FIXED: Correctly reads the JSON package from Google Apps Script and saves the PDF
+  Future<void> _saveAndOpenPdfFromJson(String jsonPayload) async {
     try {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -105,20 +95,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
         ),
       );
 
-      // Clean string (remove prefix, spaces, and line breaks)
+      final data = jsonDecode(jsonPayload);
+      final String base64String = data['base64'];
+      final String fileName = data['fileName'] ?? 'Report.pdf';
+
       String cleanBase64 = base64String.contains(',')
           ? base64String.split(',').last
           : base64String;
       cleanBase64 = cleanBase64.replaceAll('\n', '').replaceAll('\r', '').trim();
 
-      // Decode and save file
       final bytes = base64Decode(cleanBase64);
       final dir = await getApplicationDocumentsDirectory();
-      final filePath = '${dir.path}/LUGOP_Report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final filePath = '${dir.path}/$fileName';
       final file = File(filePath);
       await file.writeAsBytes(bytes);
 
-      // Open PDF file automatically
       final result = await OpenFile.open(file.path);
       if (result.type != ResultType.done && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

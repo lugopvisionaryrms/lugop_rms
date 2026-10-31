@@ -35,8 +35,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
   late final WebViewController controller;
 
   // ============ LOCKED SCHOOL ID - SET AT BUILD TIME ============
-  static const String schoolId = String.fromEnvironment('SCHOOL_ID', defaultValue: 'thunga cdss');
-  static const String schoolName = String.fromEnvironment('SCHOOL_NAME', defaultValue: 'Thunga CDSS');
+  static const String schoolId = String.fromEnvironment('SCHOOL_ID', defaultValue: 'milumbe cdss');
+  static const String schoolName = String.fromEnvironment('SCHOOL_NAME', defaultValue: 'Milumbe CDSS');
   // =============================================================
 
   String currentSubtitle = 'Mark Entry';
@@ -48,7 +48,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
       'https://lugopvisionaryrms.github.io/lugop-portal/?school=${Uri.encodeComponent(schoolId)}';
   
   String get reportPortalUrl =>
-      'https://script.google.com/macros/s/AKfycbwwSN3nPb9BTtblvnsPaG_r2WIAezI0L045IGvucUJ9h6WLiZkcfEiTqUCd6BSeFcm_/exec?school=${Uri.encodeComponent(schoolId)}';
+      'https://livingundergodofpossibilities.github.io/report-view/report.html?school=${Uri.encodeComponent(schoolId)}';
 
   @override
   void initState() {

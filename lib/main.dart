@@ -69,6 +69,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onNavigationRequest: (NavigationRequest request) {
+            final url = request.url.toLowerCase();
+            
+            // If web tries to logout, send back to dashboard
+            if (url.contains('logout') || url == 'about:blank' || url == 'about:blank#blocked') {
+              controller.loadRequest(Uri.parse(markEntryUrl));
+              return NavigationDecision.prevent;
+            }
+
             if (request.url.contains('lugopvisionaryrms.github.io') ||
                 request.url.contains('script.google.com') ||
                 request.url.contains('googleusercontent.com') ||
@@ -86,12 +94,34 @@ class _WebViewScreenState extends State<WebViewScreen> {
               });
             }
           },
-          onPageFinished: (String url) {
+          onPageFinished: (String url) async {
             if (mounted) {
               setState(() {
                 isLoading = false;
               });
             }
+
+            // Fix white screen after logout: if page is blank, go to dashboard
+            if (url.toLowerCase() == 'about:blank' || url.toLowerCase().contains('logout')) {
+              await Future.delayed(const Duration(milliseconds: 300));
+              if (mounted) {
+                controller.loadRequest(Uri.parse(markEntryUrl));
+              }
+              return;
+            }
+
+            // Also check if page content is empty/white (your portal after logout)
+            try {
+              final result = await controller.runJavaScriptReturningResult(
+                  "document.body.innerHTML.length");
+              final len = int.tryParse(result.toString()) ?? 1000;
+              if (len < 100) {
+                // Page is empty white screen
+                if (mounted) {
+                  controller.loadRequest(Uri.parse(markEntryUrl));
+                }
+              }
+            } catch (_) {}
           },
           onWebResourceError: (WebResourceError error) {
             if (mounted) {

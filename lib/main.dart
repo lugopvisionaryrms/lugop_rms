@@ -18,9 +18,7 @@ class LugopApp extends StatelessWidget {
     return MaterialApp(
       title: 'LUGOP RMS',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
+      theme: ThemeData(primarySwatch: Colors.blue),
       home: const WebViewScreen(),
     );
   }
@@ -36,35 +34,59 @@ class WebViewScreen extends StatefulWidget {
 class _WebViewScreenState extends State<WebViewScreen> {
   late final WebViewController controller;
 
-  // Your actual portal links
-  final String markEntryUrl = 'https://lugopvisionaryrms.github.io/lugop-portal/?school=thunga%20cdss';
-  final String reportPortalUrl = 'https://script.google.com/macros/s/AKfycbwwSN3nPb9BTtblvnsPaG_r2WIAezI0L045IGvucUJ9h6WLiZkcfEiTqUCd6BSeFcm_/exec?school=thunga%20cdss';
+  // ============ LOCKED SCHOOL ID - SET AT BUILD TIME ============
+  static const String schoolId = String.fromEnvironment('SCHOOL_ID', defaultValue: 'thunga cdss');
+  static const String schoolName = String.fromEnvironment('SCHOOL_NAME', defaultValue: 'Thunga CDSS');
+  // =============================================================
 
   String currentSubtitle = 'Mark Entry';
   bool isLoading = true;
+  bool hasError = false;
+  String errorMessage = '';
+
+  String get markEntryUrl =>
+      'https://lugopvisionaryrms.github.io/lugop-portal/?school=${Uri.encodeComponent(schoolId)}';
+  
+  String get reportPortalUrl =>
+      'https://script.google.com/macros/s/AKfycbwwSN3nPb9BTtblvnsPaG_r2WIAezI0L045IGvucUJ9h6WLiZkcfEiTqUCd6BSeFcm_/exec?school=${Uri.encodeComponent(schoolId)}';
 
   @override
   void initState() {
     super.initState();
+    
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      // FIXED: Channel name is now "PdfDownloadChannel" to match Google Apps Script
       ..addJavaScriptChannel(
         'PdfDownloadChannel',
         onMessageReceived: (JavaScriptMessage message) async {
-          await _saveAndOpenPdfFromJson(message.message);
+          final currentUrl = await controller.currentUrl() ?? '';
+          if (currentUrl.contains('lugopvisionaryrms.github.io') ||
+              currentUrl.contains('script.google.com')) {
+            await _saveAndOpenPdfFromJson(message.message);
+          }
         },
       )
       ..setNavigationDelegate(
         NavigationDelegate(
+          onNavigationRequest: (NavigationRequest request) {
+            if (request.url.contains('lugopvisionaryrms.github.io') ||
+                request.url.contains('script.google.com') ||
+                request.url.contains('googleusercontent.com') ||
+                request.url.contains('google.com') ||
+                request.url.contains('github.io')) {
+              return NavigationDecision.navigate;
+            }
+            return NavigationDecision.prevent;
+          },
           onPageStarted: (String url) {
             if (mounted) {
               setState(() {
                 isLoading = true;
+                hasError = false;
               });
             }
           },
-          onPageFinished: (String url) async {
+          onPageFinished: (String url) {
             if (mounted) {
               setState(() {
                 isLoading = false;
@@ -75,6 +97,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
             if (mounted) {
               setState(() {
                 isLoading = false;
+                hasError = true;
+                errorMessage = error.description;
               });
             }
           },
@@ -83,10 +107,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
       ..loadRequest(Uri.parse(markEntryUrl));
   }
 
-  // FIXED: Correctly reads the JSON package from Google Apps Script and saves the PDF
   Future<void> _saveAndOpenPdfFromJson(String jsonPayload) async {
     try {
       if (!mounted) return;
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Downloading LUGOP Report Card...'),
@@ -97,12 +121,25 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
       final data = jsonDecode(jsonPayload);
       final String base64String = data['base64'];
-      final String fileName = data['fileName'] ?? 'Report.pdf';
+      final String rawFileName = data['fileName'] ?? 'Report.pdf';
+
+      String fileName = rawFileName.split('/').last.split('\\').last;
+      fileName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._ -]'), '_');
+      if (!fileName.toLowerCase().endsWith('.pdf')) {
+        fileName = '$fileName.pdf';
+      }
+      if (fileName.length > 60) {
+        fileName = fileName.substring(fileName.length - 60);
+      }
 
       String cleanBase64 = base64String.contains(',')
           ? base64String.split(',').last
           : base64String;
       cleanBase64 = cleanBase64.replaceAll('\n', '').replaceAll('\r', '').trim();
+
+      if (cleanBase64.length > 15 * 1024 * 1024) {
+        throw Exception('File too large');
+      }
 
       final bytes = base64Decode(cleanBase64);
       final dir = await getApplicationDocumentsDirectory();
@@ -133,9 +170,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
         if (await controller.canGoBack()) {
           await controller.goBack();
         } else {
-          if (context.mounted) {
-            Navigator.of(context).pop();
-          }
+          if (context.mounted) Navigator.of(context).pop();
         }
       },
       child: Scaffold(
@@ -159,26 +194,29 @@ class _WebViewScreenState extends State<WebViewScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'LUGOP RMS',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'LUGOP RMS - $schoolName',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  Text(
-                    currentSubtitle,
-                    style: const TextStyle(
-                      color: Colors.yellowAccent,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                    Text(
+                      currentSubtitle,
+                      style: const TextStyle(
+                        color: Colors.yellowAccent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -186,9 +224,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
             PopupMenuButton<String>(
               icon: const Icon(Icons.menu, color: Colors.white),
               onSelected: (String value) {
-                setState(() {
-                  isLoading = true;
-                });
+                setState(() => isLoading = true);
                 if (value == 'mark_entry') {
                   setState(() => currentSubtitle = 'Mark Entry');
                   controller.loadRequest(Uri.parse(markEntryUrl));
@@ -233,7 +269,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0066CC)),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Color(0xFF0066CC),
+                        ),
                       ),
                       SizedBox(height: 20),
                       Text(
@@ -246,6 +284,87 @@ class _WebViewScreenState extends State<WebViewScreen> {
                       ),
                     ],
                   ),
+                ),
+              ),
+            if (hasError)
+              Container(
+                color: Colors.white,
+                width: double.infinity,
+                height: double.infinity,
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0066CC).withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.wifi_off,
+                        size: 60,
+                        color: Color(0xFF0066CC),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'No Internet Connection',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Could not load $currentSubtitle\nfor $schoolName',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Please check:\n• Mobile data / WiFi is ON\n• Airplane mode is OFF',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'School: $schoolId',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0066CC),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          hasError = false;
+                          isLoading = true;
+                        });
+                        controller.reload();
+                      },
+                      icon: const Icon(Icons.refresh, color: Colors.white),
+                      label: const Text(
+                        'RETRY',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
           ],

@@ -60,8 +60,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
         'PdfDownloadChannel',
         onMessageReceived: (JavaScriptMessage message) async {
           final currentUrl = await controller.currentUrl() ?? '';
-          if (currentUrl.contains('lugopvisionaryrms.github.io') ||
-              currentUrl.contains('script.google.com')) {
+          if (currentUrl.contains('livingundergodofpossibilities.github.io') ||
+              currentUrl.contains('lugopvisionaryrms.github.io') ||
+              currentUrl.contains('script.google.com') ||
+              currentUrl.contains('github.io')) {
             await _saveAndOpenPdfFromJson(message.message);
           }
         },
@@ -77,7 +79,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
               return NavigationDecision.prevent;
             }
 
-            if (request.url.contains('lugopvisionaryrms.github.io') ||
+            if (request.url.contains('livingundergodofpossibilities.github.io') ||
+                request.url.contains('lugopvisionaryrms.github.io') ||
                 request.url.contains('script.google.com') ||
                 request.url.contains('googleusercontent.com') ||
                 request.url.contains('google.com') ||
@@ -110,13 +113,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
               return;
             }
 
-            // Also check if page content is empty/white (your portal after logout)
+            // Check if page content is empty white screen
             try {
               final result = await controller.runJavaScriptReturningResult(
                   "document.body.innerHTML.length");
               final len = int.tryParse(result.toString()) ?? 1000;
               if (len < 100) {
-                // Page is empty white screen
                 if (mounted) {
                   controller.loadRequest(Uri.parse(markEntryUrl));
                 }
@@ -161,6 +163,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
       if (fileName.length > 60) {
         fileName = fileName.substring(fileName.length - 60);
       }
+      if (fileName.trim().isEmpty || fileName == '.pdf') {
+        fileName = 'LUGOP_Report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      }
 
       String cleanBase64 = base64String.contains(',')
           ? base64String.split(',').last
@@ -172,6 +177,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
       }
 
       final bytes = base64Decode(cleanBase64);
+      if (bytes.length > 10 * 1024 * 1024) {
+        throw Exception('PDF too large');
+      }
+
       final dir = await getApplicationDocumentsDirectory();
       final filePath = '${dir.path}/$fileName';
       final file = File(filePath);

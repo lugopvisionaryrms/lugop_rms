@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,8 +36,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
   late final WebViewController controller;
 
   // ============ LOCKED SCHOOL ID - SET AT BUILD TIME ============
-  static const String schoolId = String.fromEnvironment('SCHOOL_ID', defaultValue: 'milumbe cdss');
-  static const String schoolName = String.fromEnvironment('SCHOOL_NAME', defaultValue: 'Milumbe CDSS');
+  static const String schoolId = String.fromEnvironment('SCHOOL_ID', defaultValue: 'thunga cdss');
+  static const String schoolName = String.fromEnvironment('SCHOOL_NAME', defaultValue: 'Thunga CDSS');
+  // =============================================================
+
+  // ============ DEVELOPER CONTACT LINKS ========================
+  // TODO: Replace with your actual WhatsApp number (e.g., 265991234567) and Facebook page link
+  static const String whatsappNumber = '265882192585'; 
+  static const String facebookUrl = 'https://www.facebook.com/john.liwinya';
   // =============================================================
 
   String currentSubtitle = 'Mark Entry';
@@ -104,7 +111,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
               });
             }
 
-            // Fix white screen after logout: if page is blank, go to dashboard
+            // Fix white screen after logout
             if (url.toLowerCase() == 'about:blank' || url.toLowerCase().contains('logout')) {
               await Future.delayed(const Duration(milliseconds: 300));
               if (mounted) {
@@ -137,6 +144,79 @@ class _WebViewScreenState extends State<WebViewScreen> {
         ),
       )
       ..loadRequest(Uri.parse(markEntryUrl));
+  }
+
+  // Helper method to launch external apps (WhatsApp & Facebook)
+  Future<void> _launchExternalUrl(String urlString) async {
+    final Uri uri = Uri.parse(urlString);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open link')),
+        );
+      }
+    }
+  }
+
+  // Show dialog box for Suggestions & Feedback
+  void _showFeedbackDialog() {
+    final TextEditingController feedbackController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Suggestions & Feedback'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Have a suggestion or facing an issue? Send it directly to the developer!',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: feedbackController,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                hintText: 'Type your feedback here...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0066CC)),
+            onPressed: () async {
+              final feedback = feedbackController.text.trim();
+              if (feedback.isNotEmpty) {
+                final Uri emailUri = Uri(
+                  scheme: 'mailto',
+                  path: 'lugopvisionaryrms@gmail.com',
+                  query: 'subject=LUGOP RMS Feedback from $schoolName&body=${Uri.encodeComponent(feedback)}',
+                );
+                if (await canLaunchUrl(emailUri)) {
+                  await launchUrl(emailUri);
+                }
+              }
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Thank you! Opening email to send feedback.'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            child: const Text('Submit', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _saveAndOpenPdfFromJson(String jsonPayload) async {
@@ -263,13 +343,24 @@ class _WebViewScreenState extends State<WebViewScreen> {
             PopupMenuButton<String>(
               icon: const Icon(Icons.menu, color: Colors.white),
               onSelected: (String value) {
-                setState(() => isLoading = true);
                 if (value == 'mark_entry') {
-                  setState(() => currentSubtitle = 'Mark Entry');
+                  setState(() {
+                    isLoading = true;
+                    currentSubtitle = 'Mark Entry';
+                  });
                   controller.loadRequest(Uri.parse(markEntryUrl));
                 } else if (value == 'report_portal') {
-                  setState(() => currentSubtitle = 'Report Portal');
+                  setState(() {
+                    isLoading = true;
+                    currentSubtitle = 'Report Portal';
+                  });
                   controller.loadRequest(Uri.parse(reportPortalUrl));
+                } else if (value == 'whatsapp') {
+                  _launchExternalUrl('https://wa.me/$whatsappNumber?text=Hello%20LUGOP%20RMS%20Support');
+                } else if (value == 'facebook') {
+                  _launchExternalUrl(facebookUrl);
+                } else if (value == 'feedback') {
+                  _showFeedbackDialog();
                 }
               },
               itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
@@ -290,6 +381,37 @@ class _WebViewScreenState extends State<WebViewScreen> {
                       Icon(Icons.assessment, color: Colors.green),
                       SizedBox(width: 8),
                       Text('Report Portal'),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem<String>(
+                  value: 'whatsapp',
+                  child: Row(
+                    children: [
+                      Icon(Icons.chat, color: Colors.teal),
+                      SizedBox(width: 8),
+                      Text('WhatsApp Support'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'facebook',
+                  child: Row(
+                    children: [
+                      Icon(Icons.facebook, color: Colors.blue),
+                      SizedBox(width: 8),
+                      Text('Facebook Page'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'feedback',
+                  child: Row(
+                    children: [
+                      Icon(Icons.feedback, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Text('Suggestions & Feedback'),
                     ],
                   ),
                 ),

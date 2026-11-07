@@ -36,8 +36,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
   late final WebViewController controller;
 
   // ============ LOCKED SCHOOL ID - SET AT BUILD TIME ============
-  static const String schoolId = String.fromEnvironment('SCHOOL_ID', defaultValue: 'thunga cdss');
-  static const String schoolName = String.fromEnvironment('SCHOOL_NAME', defaultValue: 'Thunga CDSS');
+  static const String schoolId = String.fromEnvironment('SCHOOL_ID', defaultValue: 'salabango cdss');
+  static const String schoolName = String.fromEnvironment('SCHOOL_NAME', defaultValue: 'Salabango CDSS');
   // =============================================================
 
   // ============ DEVELOPER CONTACT LINKS ========================
